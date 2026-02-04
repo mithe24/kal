@@ -79,32 +79,32 @@ impl Event {
     
     pub fn cancel(&mut self) {
         self.is_cancelled = true;
-        self.updated_at = Utc::now();
+        self.touch();
     }
 
     pub fn restore(&mut self) {
         self.is_cancelled = false;
-        self.updated_at = Utc::now();
+        self.touch();
     }
 
     pub fn update_title(&mut self, title: String) {
         self.title = title;
-        self.updated_at = Utc::now();
+        self.touch();
     }
 
     pub fn update_description(&mut self, description: Option<String>) {
         self.description = description;
-        self.updated_at = Utc::now();
+        self.touch();
     }
 
     pub fn update_time_range(&mut self, time_range: TimeRange) {
         self.time_range = time_range;
-        self.updated_at = Utc::now();
+        self.touch();
     }
 
     pub fn update_color(&mut self, color: EventColor) {
         self.color = color;
-        self.updated_at = Utc::now();
+        self.touch();
     }
 
     pub fn overlaps_with(&self, other: &Event) -> bool {
@@ -112,5 +112,9 @@ impl Event {
             && !other.is_cancelled 
             && self.calendar_id == other.calendar_id
             && self.time_range.overlaps(other.time_range())
+    }
+
+    pub fn touch(&mut self) {
+        self.updated_at = Utc::now();
     }
 }
