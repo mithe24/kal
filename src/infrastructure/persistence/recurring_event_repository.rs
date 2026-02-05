@@ -1,9 +1,11 @@
+use std::result;
+
 use async_trait::async_trait;
 use sqlx::SqlitePool;
 use crate::domain::{
     recurrence::RecurringEvent,
     repository::{RecurringEventRepository, RepositoryError, Result},
-    value_objects::CalendarId,
+    value_objects::{CalendarId, EventId},
 };
 use super::{
     models::{RecurrenceModel, RecurrenceExceptionModel},
@@ -111,7 +113,10 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
         Ok(())
     }
 
-    async fn find_by_calendar(&self, calendar_id: &CalendarId) -> Result<Vec<RecurringEvent>> {
+    async fn find_by_calendar(
+        &self,
+        calendar_id: &CalendarId
+    ) -> Result<Vec<RecurringEvent>> {
         let calendar_id_str = calendar_id.to_string();
 
         let models = sqlx::query_as::<_, RecurrenceModel>(
@@ -154,16 +159,59 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
         Ok(result)
     }
 
-    async fn delete(&self, id: &str) -> Result<()> {
+    async fn find_by_id(&self, id: &EventId) -> Result<RecurringEvent> {
+        let id_str = id.to_string();
+
+        let model = sqlx::query_as::<_, RecurrenceModel>(
+            r#"
+                SELECT id, calendar_id, title, description, starts_at, ends_at,
+                       frequency, interval, until, color, is_all_day,
+                       is_cancelled,
+                       created_at, updated_at
+                FROM recurrences
+                WHERE id = ?1
+            "#
+        )
+            .bind(&id_str)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+
+        let model = match model {
+            Some(m) => m,
+            None => return Err(RepositoryError::NotFound),
+        };
+
+        let exceptions = sqlx::query_as::<_, RecurrenceExceptionModel>(
+            r#"
+        SELECT recurrence_id, original_starts_at, new_starts_at,
+               new_ends_at, is_cancelled
+        FROM recurrence_exceptions
+        WHERE recurrence_id = ?1
+        "#
+        )
+            .bind(&model.id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+
+        // Map to domain
+        let event = RecurrenceMapper::to_domain(model, exceptions)
+            .map_err(|e| RepositoryError::DatabaseError(e))?;
+
+        Ok(event)
+    }
+
+    async fn delete(&self, id: &EventId) -> Result<()> {
         let result = sqlx::query!(
             r#"
-            DELETE FROM recurrences WHERE id = ?1
+                DELETE FROM recurrences WHERE id = ?1
             "#,
             id,
         )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+            .execute(&self.pool)
+            .await
+            .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
 
         if result.rows_affected() == 0 {
             return Err(RepositoryError::NotFound);

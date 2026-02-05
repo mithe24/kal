@@ -41,5 +41,6 @@ pub trait EventRepository: Send + Sync {
 pub trait RecurringEventRepository: Send + Sync {
     async fn save(&self, event: &RecurringEvent) -> Result<()>;
     async fn find_by_calendar(&self, calendar_id: &CalendarId) -> Result<Vec<RecurringEvent>>;
-    async fn delete(&self, id: &str) -> Result<()>;
+    async fn find_by_id(&self, event_id: &CalendarId) -> Result<RecurringEvent>;
+    async fn delete(&self, id: &EventId) -> Result<()>;
 }
