@@ -27,16 +27,16 @@ impl CalendarRepository for SqliteCalendarRepository {
 
         sqlx::query!(
             r#"
-            INSERT INTO calendars (
-                id, name, description, is_archived,
-                created_at, updated_at
-            )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-            ON CONFLICT(id) DO UPDATE SET
-                name = excluded.name,
-                description = excluded.description,
-                is_archived = excluded.is_archived,
-                updated_at = excluded.updated_at
+                INSERT INTO calendars (
+                    id, name, description, is_archived,
+                    created_at, updated_at
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                ON CONFLICT(id) DO UPDATE SET
+                    name = excluded.name,
+                    description = excluded.description,
+                    is_archived = excluded.is_archived,
+                    updated_at = excluded.updated_at
             "#,
             model.id,
             model.name,
@@ -102,7 +102,7 @@ impl CalendarRepository for SqliteCalendarRepository {
 
         let result = sqlx::query!(
             r#"
-            DELETE FROM calendars WHERE id = ?1
+                DELETE FROM calendars WHERE id = ?1
             "#,
             id_str,
         )

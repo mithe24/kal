@@ -33,24 +33,24 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
 
         sqlx::query!(
             r#"
-            INSERT INTO recurrences (
-                id, calendar_id, title, description, starts_at, ends_at,
-                frequency, interval, until, color, is_all_day, is_cancelled,
-                created_at, updated_at
-            )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
-            ON CONFLICT(id) DO UPDATE SET
-                title = excluded.title,
-                description = excluded.description,
-                starts_at = excluded.starts_at,
-                ends_at = excluded.ends_at,
-                frequency = excluded.frequency,
-                interval = excluded.interval,
-                until = excluded.until,
-                color = excluded.color,
-                is_all_day = excluded.is_all_day,
-                is_cancelled = excluded.is_cancelled,
-                updated_at = excluded.updated_at
+                INSERT INTO recurrences (
+                    id, calendar_id, title, description, starts_at, ends_at,
+                    frequency, interval, until, color, is_all_day, is_cancelled,
+                    created_at, updated_at
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                ON CONFLICT(id) DO UPDATE SET
+                    title = excluded.title,
+                    description = excluded.description,
+                    starts_at = excluded.starts_at,
+                    ends_at = excluded.ends_at,
+                    frequency = excluded.frequency,
+                    interval = excluded.interval,
+                    until = excluded.until,
+                    color = excluded.color,
+                    is_all_day = excluded.is_all_day,
+                    is_cancelled = excluded.is_cancelled,
+                    updated_at = excluded.updated_at
             "#,
             model.id,
             model.calendar_id,
@@ -73,7 +73,7 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
 
         sqlx::query!(
             r#"
-            DELETE FROM recurrence_exceptions WHERE recurrence_id = ?1
+                DELETE FROM recurrence_exceptions WHERE recurrence_id = ?1
             "#,
             model.id,
         )
@@ -89,11 +89,11 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
 
             sqlx::query!(
                 r#"
-                INSERT INTO recurrence_exceptions (
-                    recurrence_id, original_starts_at, new_starts_at,
-                    new_ends_at, is_cancelled
-                )
-                VALUES (?1, ?2, ?3, ?4, ?5)
+                    INSERT INTO recurrence_exceptions (
+                        recurrence_id, original_starts_at, new_starts_at,
+                        new_ends_at, is_cancelled
+                    )
+                    VALUES (?1, ?2, ?3, ?4, ?5)
                 "#,
                 ex_model.recurrence_id,
                 ex_model.original_starts_at,
@@ -121,12 +121,12 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
 
         let models = sqlx::query_as::<_, RecurrenceModel>(
             r#"
-            SELECT id, calendar_id, title, description, starts_at, ends_at,
-                   frequency, interval, until, color, is_all_day, is_cancelled,
-                   created_at, updated_at
-            FROM recurrences
-            WHERE calendar_id = ?1
-            ORDER BY starts_at
+                SELECT id, calendar_id, title, description, starts_at, ends_at,
+                       frequency, interval, until, color, is_all_day,
+                       is_cancelled, created_at, updated_at
+                FROM recurrences
+                WHERE calendar_id = ?1
+                ORDER BY starts_at
             "#
         )
         .bind(&calendar_id_str)
@@ -139,10 +139,10 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
         for model in models {
             let exceptions = sqlx::query_as::<_, RecurrenceExceptionModel>(
                 r#"
-                SELECT id, recurrence_id, original_starts_at, new_starts_at,
-                       new_ends_at, is_cancelled
-                FROM recurrence_exceptions
-                WHERE recurrence_id = ?1
+                    SELECT id, recurrence_id, original_starts_at, new_starts_at,
+                           new_ends_at, is_cancelled
+                    FROM recurrence_exceptions
+                    WHERE recurrence_id = ?1
                 "#
             )
             .bind(&model.id)
@@ -184,11 +184,11 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
 
         let exceptions = sqlx::query_as::<_, RecurrenceExceptionModel>(
             r#"
-        SELECT recurrence_id, original_starts_at, new_starts_at,
-               new_ends_at, is_cancelled
-        FROM recurrence_exceptions
-        WHERE recurrence_id = ?1
-        "#
+                SELECT recurrence_id, original_starts_at, new_starts_at,
+                       new_ends_at, is_cancelled
+                FROM recurrence_exceptions
+                WHERE recurrence_id = ?1
+            "#
         )
             .bind(&model.id)
             .fetch_all(&self.pool)

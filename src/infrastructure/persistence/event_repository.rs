@@ -24,20 +24,20 @@ impl EventRepository for SqliteEventRepository {
 
         sqlx::query!(
             r#"
-            INSERT INTO events (
-                id, calendar_id, title, description, starts_at, ends_at,
-                color, is_all_day, is_cancelled, created_at, updated_at
-            )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
-            ON CONFLICT(id) DO UPDATE SET
-                title = excluded.title,
-                description = excluded.description,
-                starts_at = excluded.starts_at,
-                ends_at = excluded.ends_at,
-                color = excluded.color,
-                is_all_day = excluded.is_all_day,
-                is_cancelled = excluded.is_cancelled,
-                updated_at = excluded.updated_at
+                INSERT INTO events (
+                    id, calendar_id, title, description, starts_at, ends_at,
+                    color, is_all_day, is_cancelled, created_at, updated_at
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                ON CONFLICT(id) DO UPDATE SET
+                    title = excluded.title,
+                    description = excluded.description,
+                    starts_at = excluded.starts_at,
+                    ends_at = excluded.ends_at,
+                    color = excluded.color,
+                    is_all_day = excluded.is_all_day,
+                    is_cancelled = excluded.is_cancelled,
+                    updated_at = excluded.updated_at
             "#,
             model.id,
             model.calendar_id,
@@ -151,7 +151,7 @@ impl EventRepository for SqliteEventRepository {
         
         let result = sqlx::query!(
             r#"
-            DELETE FROM events WHERE id = ?1
+                DELETE FROM events WHERE id = ?1
             "#,
             id_str,
         )
