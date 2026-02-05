@@ -1,5 +1,3 @@
-use std::result;
-
 use async_trait::async_trait;
 use sqlx::SqlitePool;
 use crate::domain::{
@@ -38,7 +36,10 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
                     frequency, interval, until, color, is_all_day, is_cancelled,
                     created_at, updated_at
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                VALUES (
+                    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+                    ?9, ?10, ?11, ?12, ?13, ?14
+                )
                 ON CONFLICT(id) DO UPDATE SET
                     title = excluded.title,
                     description = excluded.description,
@@ -115,10 +116,8 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
 
     async fn find_by_calendar(
         &self,
-        calendar_id: &CalendarId
+        id: &CalendarId
     ) -> Result<Vec<RecurringEvent>> {
-        let calendar_id_str = calendar_id.to_string();
-
         let models = sqlx::query_as::<_, RecurrenceModel>(
             r#"
                 SELECT id, calendar_id, title, description, starts_at, ends_at,
@@ -129,7 +128,7 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
                 ORDER BY starts_at
             "#
         )
-        .bind(&calendar_id_str)
+        .bind(&id.to_string())
         .fetch_all(&self.pool)
         .await
         .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
@@ -160,8 +159,6 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
     }
 
     async fn find_by_id(&self, id: &EventId) -> Result<RecurringEvent> {
-        let id_str = id.to_string();
-
         let model = sqlx::query_as::<_, RecurrenceModel>(
             r#"
                 SELECT id, calendar_id, title, description, starts_at, ends_at,
@@ -172,7 +169,7 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
                 WHERE id = ?1
             "#
         )
-            .bind(&id_str)
+            .bind(id.to_string())
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
@@ -195,7 +192,6 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
             .await
             .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
 
-        // Map to domain
         let event = RecurrenceMapper::to_domain(model, exceptions)
             .map_err(|e| RepositoryError::DatabaseError(e))?;
 
@@ -203,11 +199,13 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
     }
 
     async fn delete(&self, id: &EventId) -> Result<()> {
+        let id_str = id.to_string();
+
         let result = sqlx::query!(
             r#"
                 DELETE FROM recurrences WHERE id = ?1
             "#,
-            id,
+            id_str,
         )
             .execute(&self.pool)
             .await
