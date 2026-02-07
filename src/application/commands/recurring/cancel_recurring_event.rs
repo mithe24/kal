@@ -1,5 +1,3 @@
-use chrono::{DateTime, Utc};
-
 use crate::{
     application::error::ApplicationError,
     domain::{ repository::RecurringEventRepository, value_objects::EventId },
@@ -7,7 +5,6 @@ use crate::{
 
 pub struct CancelRecurringEventCommand {
     id: EventId,
-    starts_at: DateTime<Utc>
 }
 
 pub struct CancelRecurringEventHandler<R: RecurringEventRepository> {
