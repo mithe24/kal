@@ -130,6 +130,11 @@ impl RecurringEvent {
         self.touch();
     }
 
+    pub fn restore_occurrence(&mut self, original_starts_at: DateTime<Utc>) {
+        self.remove_exception(original_starts_at);
+        self.touch();
+    }
+
     pub fn cancel_occurrence(&mut self, original_starts_at: DateTime<Utc>) {
         let exception = RecurrenceException::cancelled(original_starts_at);
         self.add_exception(exception);
@@ -149,6 +154,11 @@ impl RecurringEvent {
 
     pub fn cancel(&mut self) {
         self.is_cancelled = true;
+        self.touch();
+    }
+
+    pub fn restore(&mut self) {
+        self.is_cancelled = false;
         self.touch();
     }
 
