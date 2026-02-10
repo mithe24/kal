@@ -1,0 +1,16 @@
+[package]
+name = "kal_core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sqlx = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tokio = { workspace = true }
+getset = "0.1.6"
+thiserror = "2.0.17"
+async-trait = "0.1.89"
+
+[build-dependencies]
+sqlx = { workspace = true, features = ["migrate"] }
