@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use sqlx::SqlitePool;
 use crate::domain::{
     recurrence::RecurringEvent,
-    repository::{RecurringEventRepository, RepositoryError, Result},
+    repository::{RecurringEventRepository, RepositoryError},
     value_objects::{CalendarId, EventId},
 };
 use super::{
@@ -22,7 +22,7 @@ impl SqliteRecurringEventRepository {
 
 #[async_trait]
 impl RecurringEventRepository for SqliteRecurringEventRepository {
-    async fn save(&self, event: &RecurringEvent) -> Result<()> {
+    async fn save(&self, event: &RecurringEvent) -> Result<(), RepositoryError> {
         let mut tx = self.pool.begin()
             .await
             .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
@@ -117,7 +117,7 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
     async fn find_by_calendar(
         &self,
         id: &CalendarId
-    ) -> Result<Vec<RecurringEvent>> {
+    ) -> Result<Vec<RecurringEvent>, RepositoryError> {
         let models = sqlx::query_as::<_, RecurrenceModel>(
             r#"
                 SELECT id, calendar_id, title, description, starts_at, ends_at,
@@ -158,7 +158,10 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
         Ok(result)
     }
 
-    async fn find_by_id(&self, id: &EventId) -> Result<RecurringEvent> {
+    async fn find_by_id(
+        &self,
+        id: &EventId
+    ) -> Result<RecurringEvent, RepositoryError> {
         let model = sqlx::query_as::<_, RecurrenceModel>(
             r#"
                 SELECT id, calendar_id, title, description, starts_at, ends_at,
@@ -198,7 +201,7 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
         Ok(event)
     }
 
-    async fn delete(&self, id: &EventId) -> Result<()> {
+    async fn delete(&self, id: &EventId) -> Result<(), RepositoryError> {
         let id_str = id.to_string();
 
         let result = sqlx::query!(

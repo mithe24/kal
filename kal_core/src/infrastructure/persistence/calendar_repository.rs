@@ -3,7 +3,7 @@ use sqlx::SqlitePool;
 use crate::{
     domain::{
         calendar::Calendar,
-        repository::{CalendarRepository, RepositoryError, Result},
+        repository::{CalendarRepository, RepositoryError},
         value_objects::CalendarId,
     },
     infrastructure::persistence::models::CalendarModel
@@ -22,7 +22,7 @@ impl SqliteCalendarRepository {
 
 #[async_trait]
 impl CalendarRepository for SqliteCalendarRepository {
-    async fn save(&self, calendar: &Calendar) -> Result<()> {
+    async fn save(&self, calendar: &Calendar) -> Result<(), RepositoryError> {
         let model = CalendarMapper::to_model(calendar);
 
         sqlx::query!(
@@ -52,7 +52,10 @@ impl CalendarRepository for SqliteCalendarRepository {
         Ok(())
     }
 
-    async fn find_by_id(&self, id: &CalendarId) -> Result<Option<Calendar>> {
+    async fn find_by_id(
+        &self,
+        id: &CalendarId
+    ) -> Result<Option<Calendar>, RepositoryError> {
         let id_str = id.to_string();
 
         let model = sqlx::query_as::<_, CalendarModel>(
@@ -77,7 +80,7 @@ impl CalendarRepository for SqliteCalendarRepository {
         }
     }
 
-    async fn find_all_active(&self) -> Result<Vec<Calendar>> {
+    async fn find_all_active(&self) -> Result<Vec<Calendar>, RepositoryError> {
         let models = sqlx::query_as::<_, CalendarModel>(
             r#"
             SELECT id, name, description, is_archived, created_at, updated_at
@@ -97,7 +100,7 @@ impl CalendarRepository for SqliteCalendarRepository {
             .collect()
     }
 
-    async fn delete(&self, id: &CalendarId) -> Result<()> {
+    async fn delete(&self, id: &CalendarId) -> Result<(), RepositoryError> {
         let id_str = id.to_string();
 
         let result = sqlx::query!(

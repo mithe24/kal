@@ -6,8 +6,6 @@ use super::{
     value_objects::{CalendarId, EventId, TimeRange},
 };
 
-pub type Result<T> = std::result::Result<T, RepositoryError>;
-
 #[derive(Debug, thiserror::Error)]
 pub enum RepositoryError {
     #[error("Entity not found")]
@@ -22,25 +20,25 @@ pub enum RepositoryError {
 
 #[async_trait]
 pub trait CalendarRepository: Send + Sync {
-    async fn save(&self, calendar: &Calendar) -> Result<()>;
-    async fn find_by_id(&self, id: &CalendarId) -> Result<Option<Calendar>>;
-    async fn find_all_active(&self) -> Result<Vec<Calendar>>;
-    async fn delete(&self, id: &CalendarId) -> Result<()>;
+    async fn save(&self, calendar: &Calendar) -> Result<(), RepositoryError>;
+    async fn find_by_id(&self, id: &CalendarId) -> Result<Option<Calendar>, RepositoryError>;
+    async fn find_all_active(&self) -> Result<Vec<Calendar>, RepositoryError>;
+    async fn delete(&self, id: &CalendarId) -> Result<(), RepositoryError>;
 }
 
 #[async_trait]
 pub trait EventRepository: Send + Sync {
-    async fn save(&self, event: &Event) -> Result<()>;
-    async fn find_by_id(&self, id: &EventId) -> Result<Option<Event>>;
-    async fn find_by_calendar(&self, calendar_id: &CalendarId) -> Result<Vec<Event>>;
-    async fn find_in_range(&self, calendar_id: &CalendarId, range: &TimeRange) -> Result<Vec<Event>>;
-    async fn delete(&self, id: &EventId) -> Result<()>;
+    async fn save(&self, event: &Event) -> Result<(), RepositoryError>;
+    async fn find_by_id(&self, id: &EventId) -> Result<Option<Event>, RepositoryError>;
+    async fn find_by_calendar(&self, calendar_id: &CalendarId) -> Result<Vec<Event>, RepositoryError>;
+    async fn find_in_range(&self, calendar_id: &CalendarId, range: &TimeRange) -> Result<Vec<Event>, RepositoryError>;
+    async fn delete(&self, id: &EventId) -> Result<(), RepositoryError>;
 }
 
 #[async_trait]
 pub trait RecurringEventRepository: Send + Sync {
-    async fn save(&self, event: &RecurringEvent) -> Result<()>;
-    async fn find_by_calendar(&self, calendar_id: &CalendarId) -> Result<Vec<RecurringEvent>>;
-    async fn find_by_id(&self, event_id: &EventId) -> Result<RecurringEvent>;
-    async fn delete(&self, id: &EventId) -> Result<()>;
+    async fn save(&self, event: &RecurringEvent) -> Result<(), RepositoryError>;
+    async fn find_by_calendar(&self, calendar_id: &CalendarId) -> Result<Vec<RecurringEvent>, RepositoryError>;
+    async fn find_by_id(&self, event_id: &EventId) -> Result<RecurringEvent, RepositoryError>;
+    async fn delete(&self, id: &EventId) -> Result<(), RepositoryError>;
 }

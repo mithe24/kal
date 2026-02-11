@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use sqlx::SqlitePool;
 use crate::domain::{
     event::Event,
-    repository::{EventRepository, RepositoryError, Result},
+    repository::{EventRepository, RepositoryError},
     value_objects::{CalendarId, EventId, TimeRange},
 };
 use super::{models::EventModel, mappers::EventMapper};
@@ -19,7 +19,7 @@ impl SqliteEventRepository {
 
 #[async_trait]
 impl EventRepository for SqliteEventRepository {
-    async fn save(&self, event: &Event) -> Result<()> {
+    async fn save(&self, event: &Event) -> Result<(), RepositoryError> {
         let model = EventMapper::to_model(event);
 
         sqlx::query!(
@@ -58,7 +58,10 @@ impl EventRepository for SqliteEventRepository {
         Ok(())
     }
 
-    async fn find_by_id(&self, id: &EventId) -> Result<Option<Event>> {
+    async fn find_by_id(
+        &self,
+        id: &EventId
+    ) -> Result<Option<Event>, RepositoryError> {
         let id_str = id.to_string();
 
         let model = sqlx::query_as::<_, EventModel>(
@@ -87,7 +90,7 @@ impl EventRepository for SqliteEventRepository {
     async fn find_by_calendar(
         &self,
         calendar_id: &CalendarId
-    ) -> Result<Vec<Event>> {
+    ) -> Result<Vec<Event>, RepositoryError> {
         let calendar_id_str = calendar_id.to_string();
 
         let models = sqlx::query_as::<_, EventModel>(
@@ -115,7 +118,7 @@ impl EventRepository for SqliteEventRepository {
         &self,
         calendar_id: &CalendarId,
         range: &TimeRange,
-    ) -> Result<Vec<Event>> {
+    ) -> Result<Vec<Event>, RepositoryError> {
         let calendar_id_str = calendar_id.to_string();
         let range_start = range.starts_at().to_rfc3339();
         let range_end = range.ends_at().to_rfc3339();
@@ -146,7 +149,7 @@ impl EventRepository for SqliteEventRepository {
             .collect()
     }
 
-    async fn delete(&self, id: &EventId) -> Result<()> {
+    async fn delete(&self, id: &EventId) -> Result<(), RepositoryError> {
         let id_str = id.to_string();
         
         let result = sqlx::query!(
