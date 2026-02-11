@@ -1,12 +1,12 @@
 use chrono::{DateTime, Utc};
 use getset::Getters;
 
-use crate::domain::value_objects::CalendarId;
+use crate::domain::{error::DomainError, value_objects::CalendarId};
 
 #[derive(Debug, Clone, Getters)]
 pub struct Calendar {
     #[getset(get = "pub")]
-    id: CalendarId,
+    calendar_id: CalendarId,
     #[getset(get = "pub")]
     name: String,
     #[getset(get = "pub")]
@@ -20,33 +20,44 @@ pub struct Calendar {
 }
 
 impl Calendar {
-    pub fn new(name: String, description: Option<String>) -> Self {
+    pub fn new(
+        name: String,
+        description: Option<String>
+    ) -> Result<Self, DomainError> {
         let now = Utc::now();
-        Self {
-            id: CalendarId::new(),
-            name,
-            description,
-            is_archived: false,
-            created_at: now,
-            updated_at: now,
+        if name.is_empty() {
+            Err(DomainError::EmptyName)
+        } else {
+            Ok(Self {
+                calendar_id: CalendarId::new(),
+                name,
+                description,
+                is_archived: false,
+                created_at: now,
+                updated_at: now,
+            })
         }
     }
 
     pub fn with_id(
-        id: CalendarId,
+        calendar_id: CalendarId,
         name: String,
         description: Option<String>,
         is_archived: bool,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
-    ) -> Self {
-        Self {
-            id,
-            name,
-            description,
-            is_archived,
-            created_at,
-            updated_at,
+    ) -> Result<Self, DomainError> {
+        if name.is_empty() {
+            Err(DomainError::EmptyName)
+        } else {
+            Ok(Self {
+                calendar_id,
+                name,
+                description,
+                is_archived,
+                created_at,
+                updated_at,
+            })
         }
     }
 

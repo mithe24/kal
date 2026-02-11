@@ -4,7 +4,7 @@ use crate::{
 };
 
 pub struct DeleteCalendarCommand {
-    id: CalendarId,
+    calendar_id: CalendarId,
 }
 pub struct DeleteCalendarHandler<R: CalendarRepository> {
     repository: R,
@@ -21,10 +21,10 @@ impl<R: CalendarRepository> DeleteCalendarHandler<R> {
     ) -> Result<(), ApplicationError> {
         let _calendar = self
             .repository
-            .find_by_id(&command.id)
+            .find_by_id(&command.calendar_id)
             .await?;
 
-        self.repository.delete(&command.id).await?;
+        self.repository.delete(&command.calendar_id).await?;
 
         Ok(())
     }

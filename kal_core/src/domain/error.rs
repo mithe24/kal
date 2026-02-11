@@ -2,6 +2,12 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DomainError {
+    #[error("Title cannot be empty")]
+    EmptyTitle,
+
+    #[error("Name cannot be empty")]
+    EmptyName,
+
     #[error("Invalid time range: start time must be before end time")]
     InvalidTimeRange,
 

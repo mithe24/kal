@@ -85,7 +85,7 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
         for exception in event.exceptions().values() {
             let ex_model = RecurrenceMapper::exception_to_model(
                 exception,
-                event.id(),
+                event.event_id(),
             );
 
             sqlx::query!(
@@ -150,7 +150,7 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
             .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
 
             let event = RecurrenceMapper::to_domain(model, exceptions)
-                .map_err(|e| RepositoryError::DatabaseError(e))?;
+                .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
 
             result.push(event);
         }
@@ -196,7 +196,7 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
             .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
 
         let event = RecurrenceMapper::to_domain(model, exceptions)
-            .map_err(|e| RepositoryError::DatabaseError(e))?;
+            .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
 
         Ok(event)
     }

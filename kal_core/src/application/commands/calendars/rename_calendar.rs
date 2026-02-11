@@ -4,7 +4,7 @@ use crate::{
 };
 
 pub struct RenameCalendarCommand {
-    id: CalendarId,
+    calendar_id: CalendarId,
     new_name: String,
 }
 
@@ -23,7 +23,7 @@ impl<R: CalendarRepository> RenameCalendarHandler<R> {
     ) -> Result<(), ApplicationError> {
         let mut calendar = self
             .repository
-            .find_by_id(&command.id)
+            .find_by_id(&command.calendar_id)
             .await?
             .ok_or(ApplicationError::CalendarNotFound)?;
 

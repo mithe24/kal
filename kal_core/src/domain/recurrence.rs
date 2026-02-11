@@ -38,7 +38,7 @@ impl RecurrenceRule {
 #[derive(Debug, Clone, Getters)]
 pub struct RecurringEvent {
     #[getset(get = "pub")]
-    id: EventId,
+    event_id: EventId,
     #[getset(get = "pub")]
     calendar_id: CalendarId,
     #[getset(get = "pub")]
@@ -72,26 +72,30 @@ impl RecurringEvent {
         rule: RecurrenceRule,
         color: EventColor,
         is_all_day: bool,
-    ) -> Self {
+    ) -> Result<Self, DomainError> {
         let now = Utc::now();
-        Self {
-            id: EventId::new(),
-            calendar_id,
-            title,
-            description,
-            time_range,
-            rule,
-            exceptions: HashMap::new(),
-            color,
-            is_all_day,
-            is_cancelled: false,
-            created_at: now,
-            updated_at: now,
+        if title.is_empty() {
+            Err(DomainError::EmptyTitle)
+        } else {
+            Ok(Self {
+                event_id: EventId::new(),
+                calendar_id,
+                title,
+                description,
+                time_range,
+                rule,
+                exceptions: HashMap::new(),
+                color,
+                is_all_day,
+                is_cancelled: false,
+                created_at: now,
+                updated_at: now,
+            })
         }
     }
 
     pub fn with_id(
-        id: EventId,
+        event_id: EventId,
         calendar_id: CalendarId,
         title: String,
         description: Option<String>,
@@ -103,20 +107,24 @@ impl RecurringEvent {
         is_cancelled: bool,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
-    ) -> Self {
-        Self {
-            id,
-            calendar_id,
-            title,
-            description,
-            time_range,
-            rule,
-            exceptions,
-            color,
-            is_all_day,
-            is_cancelled,
-            created_at,
-            updated_at,
+    ) -> Result<Self, DomainError> {
+        if title.is_empty() {
+            Err(DomainError::EmptyTitle)
+        } else {
+            Ok(Self {
+                event_id,
+                calendar_id,
+                title,
+                description,
+                time_range,
+                rule,
+                exceptions,
+                color,
+                is_all_day,
+                is_cancelled,
+                created_at,
+                updated_at,
+            })
         }
     }
 

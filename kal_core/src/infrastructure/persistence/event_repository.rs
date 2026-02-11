@@ -80,7 +80,7 @@ impl EventRepository for SqliteEventRepository {
         match model {
             Some(m) => {
                 let event = EventMapper::to_domain(m)
-                    .map_err(|e| RepositoryError::DatabaseError(e))?;
+                    .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
                 Ok(Some(event))
             }
             None => Ok(None),
@@ -110,7 +110,7 @@ impl EventRepository for SqliteEventRepository {
         models
             .into_iter()
             .map(|m| EventMapper::to_domain(m)
-                .map_err(|e| RepositoryError::DatabaseError(e)))
+                .map_err(|e| RepositoryError::DatabaseError(e.to_string())))
             .collect()
     }
 
@@ -145,7 +145,7 @@ impl EventRepository for SqliteEventRepository {
         models
             .into_iter()
             .map(|m| EventMapper::to_domain(m)
-                .map_err(|e| RepositoryError::DatabaseError(e)))
+                .map_err(|e| RepositoryError::DatabaseError(e.to_string())))
             .collect()
     }
 

@@ -26,9 +26,9 @@ impl<R: CalendarRepository> CreateCalendarHandler<R> {
         &self,
         command: CreateCalendarCommand,
     ) -> Result<CalendarId, ApplicationError> {
-        let calendar = Calendar::new(command.name, command.description);
+        let calendar = Calendar::new(command.name, command.description)?;
 
-        let calendar_id = calendar.id().clone();
+        let calendar_id = calendar.calendar_id().clone();
 
         self.repository.save(&calendar).await?;
 

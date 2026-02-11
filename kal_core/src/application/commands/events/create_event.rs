@@ -36,9 +36,9 @@ impl<R: EventRepository> CreateEventHandler<R> {
             command.time_range,
             command.color,
             command.is_all_day
-        );
+        )?;
 
-        let event_id = event.id().clone();
+        let event_id = event.event_id().clone();
 
         self.repository.save(&event).await?;
 

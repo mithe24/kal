@@ -73,7 +73,7 @@ impl CalendarRepository for SqliteCalendarRepository {
         match model {
             Some(m) => {
                 let calendar = CalendarMapper::to_domain(m)
-                    .map_err(|e| RepositoryError::DatabaseError(e))?;
+                    .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
                 Ok(Some(calendar))
             }
             None => Ok(None),
@@ -96,7 +96,7 @@ impl CalendarRepository for SqliteCalendarRepository {
         models
             .into_iter()
             .map(|m| CalendarMapper::to_domain(m)
-                .map_err(|e| RepositoryError::DatabaseError(e)))
+                .map_err(|e| RepositoryError::DatabaseError(e.to_string())))
             .collect()
     }
 
