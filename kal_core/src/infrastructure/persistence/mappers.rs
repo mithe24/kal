@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
-
 use std::{collections::HashMap, str::FromStr};
 
 use crate::domain::{
+    value_objects::{CalendarId, EventColor, EventId, Frequency, TimeRange},
     calendar::Calendar,
     event::Event,
     recurrence::{
@@ -10,13 +10,6 @@ use crate::domain::{
         RecurrenceException,
         RecurrenceRule,
         RecurringEvent,
-    },
-    value_objects::{
-        CalendarId,
-        EventColor,
-        EventId,
-        Frequency,
-        TimeRange,
     },
 };
 
@@ -31,28 +24,51 @@ use crate::infrastructure::persistence::error::MapperError;
 
 type MapperResult<T> = Result<T, MapperError>;
 
+fn parse_calendar_id(s: &str) -> MapperResult<CalendarId> {
+    CalendarId::from_str(s).map_err(|e| MapperError::InvalidId(e.to_string()))
+}
 
-// ======================================================
-// Calendar
-// ======================================================
+fn parse_event_id(s: &str) -> MapperResult<EventId> {
+    EventId::from_str(s).map_err(|e| MapperError::InvalidId(e.to_string()))
+}
+
+fn parse_date(s: &str) -> MapperResult<DateTime<Utc>> {
+    Ok(DateTime::parse_from_rfc3339(s)
+        .map_err(|e| MapperError::InvalidDate(e.to_string()))?
+        .with_timezone(&Utc))
+}
+
+fn parse_frequency(s: &str) -> MapperResult<Frequency> {
+    Frequency::from_str(s).map_err(|e| MapperError::InvalidData(e.to_string()))
+}
+
+fn to_bool(value: i64) -> bool {
+    value != 0
+}
+
+fn from_bool(value: bool) -> i64 {
+    if value { 1 } else { 0 }
+}
+
+fn parse_event_color(value: i64) -> EventColor {
+    EventColor::from(value as u8)
+}
+
+fn color_to_i64(color: EventColor) -> i64 {
+    u8::from(color) as i64
+}
 
 pub struct CalendarMapper;
 
 impl CalendarMapper {
     pub fn to_domain(model: CalendarModel) -> MapperResult<Calendar> {
-        let id = CalendarId::from_str(&model.id)
-            .map_err(|e| MapperError::InvalidId(e.to_string()))?;
-
-        let created_at = parse_date(&model.created_at)?;
-        let updated_at = parse_date(&model.updated_at)?;
-
         Ok(Calendar::with_id(
-            id,
+            parse_calendar_id(&model.id)?,
             model.name,
             model.description,
-            model.is_archived != 0,
-            created_at,
-            updated_at,
+            to_bool(model.is_archived),
+            parse_date(&model.created_at)?,
+            parse_date(&model.updated_at)?,
         )?)
     }
 
@@ -61,52 +77,33 @@ impl CalendarMapper {
             id: calendar.calendar_id().to_string(),
             name: calendar.name().to_string(),
             description: calendar.description().clone(),
-            is_archived: if *calendar.is_archived() { 1 } else { 0 },
+            is_archived: from_bool(*calendar.is_archived()),
             created_at: calendar.created_at().to_rfc3339(),
             updated_at: calendar.updated_at().to_rfc3339(),
         }
     }
 }
 
-
-// ======================================================
-// Event
-// ======================================================
-
 pub struct EventMapper;
 
 impl EventMapper {
     pub fn to_domain(model: EventModel) -> MapperResult<Event> {
-        let _id = CalendarId::from_str(&model.id)
-            .map_err(|e| MapperError::InvalidId(e.to_string()))?;
-
-        let event_id = EventId::from_str(&model.id)
-            .map_err(|e| MapperError::InvalidId(e.to_string()))?;
-
-        let calendar_id = CalendarId::from_str(&model.calendar_id)
-            .map_err(|e| MapperError::InvalidId(e.to_string()))?;
-
-        let starts_at = parse_date(&model.starts_at)?;
-        let ends_at = parse_date(&model.ends_at)?;
-
-        let created_at = parse_date(&model.created_at)?;
-        let updated_at = parse_date(&model.updated_at)?;
-
-        let time_range = TimeRange::new(starts_at, ends_at)?;
-
-        let color = EventColor::from(model.color as u8);
+        let time_range = TimeRange::new(
+            parse_date(&model.starts_at)?,
+            parse_date(&model.ends_at)?,
+        )?;
 
         Ok(Event::with_id(
-            event_id,
-            calendar_id,
+            parse_event_id(&model.id)?,
+            parse_calendar_id(&model.calendar_id)?,
             model.title,
             model.description,
             time_range,
-            color,
-            model.is_all_day != 0,
-            model.is_cancelled != 0,
-            created_at,
-            updated_at,
+            parse_event_color(model.color),
+            to_bool(model.is_all_day),
+            to_bool(model.is_cancelled),
+            parse_date(&model.created_at)?,
+            parse_date(&model.updated_at)?,
         )?)
     }
 
@@ -118,19 +115,14 @@ impl EventMapper {
             description: event.description().clone(),
             starts_at: event.time_range().starts_at().to_rfc3339(),
             ends_at: event.time_range().ends_at().to_rfc3339(),
-            color: u8::from(*event.color()) as i64,
-            is_all_day: if *event.is_all_day() { 1 } else { 0 },
-            is_cancelled: if *event.is_cancelled() { 1 } else { 0 },
+            color: color_to_i64(*event.color()),
+            is_all_day: from_bool(*event.is_all_day()),
+            is_cancelled: from_bool(*event.is_cancelled()),
             created_at: event.created_at().to_rfc3339(),
             updated_at: event.updated_at().to_rfc3339(),
         }
     }
 }
-
-
-// ======================================================
-// Recurring
-// ======================================================
 
 pub struct RecurrenceMapper;
 
@@ -139,34 +131,15 @@ impl RecurrenceMapper {
         model: RecurrenceModel,
         exceptions: Vec<RecurrenceExceptionModel>,
     ) -> MapperResult<RecurringEvent> {
-
-        let event_id = EventId::from_str(&model.id)
-            .map_err(|e| MapperError::InvalidId(e.to_string()))?;
-
-        let calendar_id = CalendarId::from_str(&model.calendar_id)
-            .map_err(|e| MapperError::InvalidId(e.to_string()))?;
-
-        let starts_at = parse_date(&model.starts_at)?;
-        let ends_at = parse_date(&model.ends_at)?;
-
-        let created_at = parse_date(&model.created_at)?;
-        let updated_at = parse_date(&model.updated_at)?;
-
-        let base_time_range = TimeRange::new(starts_at, ends_at)?;
-
-        let color = EventColor::from(model.color as u8);
-
-        let frequency = Frequency::from_str(&model.frequency)?;
-
-        let until = match model.until {
-            Some(u) => Some(parse_date(&u)?),
-            None => None,
-        };
+        let base_time_range = TimeRange::new(
+            parse_date(&model.starts_at)?,
+            parse_date(&model.ends_at)?,
+        )?;
 
         let rule = RecurrenceRule::new(
-            frequency,
+            parse_frequency(&model.frequency)?,
             model.interval as u32,
-            until,
+            model.until.as_ref().map(|u| parse_date(u)).transpose()?,
         )?;
 
         let exception_map = exceptions
@@ -178,68 +151,57 @@ impl RecurrenceMapper {
             .collect::<HashMap<_, _>>();
 
         Ok(RecurringEvent::with_id(
-            event_id,
-            calendar_id,
+            parse_event_id(&model.id)?,
+            parse_calendar_id(&model.calendar_id)?,
             model.title,
             model.description,
             base_time_range,
             rule,
             exception_map,
-            color,
-            model.is_all_day != 0,
-            model.is_cancelled != 0,
-            created_at,
-            updated_at,
+            parse_event_color(model.color),
+            to_bool(model.is_all_day),
+            to_bool(model.is_cancelled),
+            parse_date(&model.created_at)?,
+            parse_date(&model.updated_at)?,
         )?)
     }
 
-
-    // ==================================================
-    // Exceptions
-    // ==================================================
-
     fn exception_to_domain(
-        model: RecurrenceExceptionModel,
+        model: RecurrenceExceptionModel
     ) -> MapperResult<RecurrenceException> {
-
         let original = parse_date(&model.original_starts_at)?;
 
-        if model.is_cancelled != 0 {
+        if to_bool(model.is_cancelled) {
             return Ok(RecurrenceException::cancelled(original));
         }
 
         match (model.new_starts_at, model.new_ends_at) {
             (Some(start), Some(end)) => {
-                let starts = parse_date(&start)?;
-                let ends = parse_date(&end)?;
-
-                let range = TimeRange::new(starts, ends)?;
-
+                let range = TimeRange::new(
+                    parse_date(&start)?,
+                    parse_date(&end)?
+                )?;
                 Ok(RecurrenceException::rescheduled(original, range))
             }
-
             _ => Err(MapperError::InvalidData(
                 "Exception must be cancelled or rescheduled".into(),
             )),
         }
     }
 
-
     pub fn exception_to_model(
         exception: &RecurrenceException,
         recurrence_id: &EventId,
     ) -> RecurrenceExceptionModel {
-
-        let (new_starts_at, new_ends_at, is_cancelled) =
-            match exception.modification() {
-                ExceptionModification::Cancelled => (None, None, 1),
-
-                ExceptionModification::Rescheduled { new_time_range } => (
-                    Some(new_time_range.starts_at().to_rfc3339()),
-                    Some(new_time_range.ends_at().to_rfc3339()),
-                    0,
-                ),
-            };
+        let (new_starts_at, new_ends_at, is_cancelled)
+            = match exception.modification() {
+            ExceptionModification::Cancelled => (None, None, 1),
+            ExceptionModification::Rescheduled { new_time_range } => (
+                Some(new_time_range.starts_at().to_rfc3339()),
+                Some(new_time_range.ends_at().to_rfc3339()),
+                0,
+            ),
+        };
 
         RecurrenceExceptionModel {
             recurrence_id: recurrence_id.to_string(),
@@ -249,7 +211,6 @@ impl RecurrenceMapper {
             is_cancelled,
         }
     }
-
 
     pub fn to_model(event: &RecurringEvent) -> RecurrenceModel {
         RecurrenceModel {
@@ -262,24 +223,11 @@ impl RecurrenceMapper {
             frequency: event.rule().frequency().to_string(),
             interval: *event.rule().interval() as i64,
             until: event.rule().until().map(|dt| dt.to_rfc3339()),
-            color: u8::from(*event.color()) as i64,
-            is_all_day: if *event.is_all_day() { 1 } else { 0 },
-            is_cancelled: if *event.is_cancelled() { 1 } else { 0 },
+            color: color_to_i64(*event.color()),
+            is_all_day: from_bool(*event.is_all_day()),
+            is_cancelled: from_bool(*event.is_cancelled()),
             created_at: event.created_at().to_rfc3339(),
             updated_at: event.updated_at().to_rfc3339(),
         }
     }
-}
-
-
-// ======================================================
-// Helpers
-// ======================================================
-
-fn parse_date(s: &str) -> MapperResult<DateTime<Utc>> {
-    Ok(
-        DateTime::parse_from_rfc3339(s)
-            .map_err(|e| MapperError::InvalidDate(e.to_string()))?
-            .with_timezone(&Utc)
-    )
 }

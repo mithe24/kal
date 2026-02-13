@@ -5,6 +5,5 @@ pub mod event_repository;
 pub mod recurring_event_repository;
 pub mod error;
 
-pub use calendar_repository::SqliteCalendarRepository;
 pub use event_repository::SqliteEventRepository;
 pub use recurring_event_repository::SqliteRecurringEventRepository;

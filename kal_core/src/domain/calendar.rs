@@ -26,7 +26,7 @@ impl Calendar {
     ) -> Result<Self, DomainError> {
         let now = Utc::now();
         if name.is_empty() {
-            Err(DomainError::EmptyName)
+            Err(DomainError::EmptyCalendarName)
         } else {
             Ok(Self {
                 calendar_id: CalendarId::new(),
@@ -48,7 +48,7 @@ impl Calendar {
         updated_at: DateTime<Utc>,
     ) -> Result<Self, DomainError> {
         if name.is_empty() {
-            Err(DomainError::EmptyName)
+            Err(DomainError::EmptyCalendarName)
         } else {
             Ok(Self {
                 calendar_id,

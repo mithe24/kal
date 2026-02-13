@@ -1,122 +1,78 @@
-use async_trait::async_trait;
-use sqlx::SqlitePool;
 use crate::{
+    application::error::ApplicationError,
     domain::{
         calendar::Calendar,
-        repository::{CalendarRepository, RepositoryError},
+        repository::CalendarRepository,
         value_objects::CalendarId,
     },
-    infrastructure::persistence::models::CalendarModel
 };
-use super::mappers::CalendarMapper;
 
-pub struct SqliteCalendarRepository {
-    pool: SqlitePool,
+pub struct CalendarService<R: CalendarRepository> {
+    repository: R,
 }
 
-impl SqliteCalendarRepository {
-    pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
-    }
-}
-
-#[async_trait]
-impl CalendarRepository for SqliteCalendarRepository {
-    async fn save(&self, calendar: &Calendar) -> Result<(), RepositoryError> {
-        let model = CalendarMapper::to_model(calendar);
-
-        sqlx::query!(
-            r#"
-                INSERT INTO calendars (
-                    id, name, description, is_archived,
-                    created_at, updated_at
-                )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-                ON CONFLICT(id) DO UPDATE SET
-                    name = excluded.name,
-                    description = excluded.description,
-                    is_archived = excluded.is_archived,
-                    updated_at = excluded.updated_at
-            "#,
-            model.id,
-            model.name,
-            model.description,
-            model.is_archived,
-            model.created_at,
-            model.updated_at,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
-
-        Ok(())
+impl<R: CalendarRepository> CalendarService<R> {
+    pub fn new(repository: R) -> Self {
+        Self { repository }
     }
 
-    async fn find_by_id(
+    pub async fn find_by_id(
         &self,
-        id: &CalendarId
-    ) -> Result<Option<Calendar>, RepositoryError> {
-        let id_str = id.to_string();
+        calendar_id: &CalendarId,
+    ) -> Result<Option<Calendar>, ApplicationError> {
+        self.repository
+            .find_by_id(calendar_id)
+            .await
+            .map_err(Into::into)
+    }
 
-        let model = sqlx::query_as::<_, CalendarModel>(
-            r#"
-            SELECT id, name, description, is_archived, created_at, updated_at
-            FROM calendars
-            WHERE id = ?1
-            "#
-        )
-        .bind(&id_str)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+    pub async fn get_by_id(
+        &self,
+        calendar_id: &CalendarId,
+    ) -> Result<Calendar, ApplicationError> {
+        self.find_by_id(calendar_id)
+            .await?
+            .ok_or(ApplicationError::NotFound(calendar_id.to_string()))
+    }
 
-        match model {
-            Some(m) => {
-                let calendar = CalendarMapper::to_domain(m)
-                    .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
-                Ok(Some(calendar))
-            }
-            None => Ok(None),
+    pub async fn list_active(&self) -> Result<Vec<Calendar>, ApplicationError> {
+        self.repository
+            .find_all_active()
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn verify_active(
+        &self,
+        calendar_id: &CalendarId,
+    ) -> Result<bool, ApplicationError> {
+        let calendar = self.get_by_id(calendar_id).await?;
+
+        if *calendar.is_archived() {
+            Ok(false)
+        } else {
+            Ok(true)
         }
     }
 
-    async fn find_all_active(&self) -> Result<Vec<Calendar>, RepositoryError> {
-        let models = sqlx::query_as::<_, CalendarModel>(
-            r#"
-            SELECT id, name, description, is_archived, created_at, updated_at
-            FROM calendars
-            WHERE is_archived = 0
-            ORDER BY name
-            "#
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
-
-        models
-            .into_iter()
-            .map(|m| CalendarMapper::to_domain(m)
-                .map_err(|e| RepositoryError::DatabaseError(e.to_string())))
-            .collect()
+    /// Check if a calendar exists
+    pub async fn exists(
+        &self,
+        calendar_id: &CalendarId
+    ) -> Result<bool, ApplicationError> {
+        Ok(self.find_by_id(calendar_id).await?.is_some())
     }
 
-    async fn delete(&self, id: &CalendarId) -> Result<(), RepositoryError> {
-        let id_str = id.to_string();
-
-        let result = sqlx::query!(
-            r#"
-                DELETE FROM calendars WHERE id = ?1
-            "#,
-            id_str,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
-
-        if result.rows_affected() == 0 {
-            return Err(RepositoryError::NotFound);
+    /// Verify calendar exists (archived or not)
+    pub async fn verify_exists(
+        &self,
+        calendar_id: &CalendarId,
+    ) -> Result<(), ApplicationError> {
+        if !self.exists(calendar_id).await? {
+            return Err(ApplicationError::NotFound(
+                format!("Calendar with ID {} not found", calendar_id)
+            ));
         }
-
         Ok(())
     }
 }

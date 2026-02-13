@@ -1,13 +1,13 @@
 use async_trait::async_trait;
-use sqlx::SqlitePool;
+use sqlx::{SqlitePool, Transaction, Sqlite};
 use crate::domain::{
     recurrence::RecurringEvent,
-    repository::{RecurringEventRepository, RepositoryError},
     value_objects::{CalendarId, EventId},
+    repository::{RecurringEventRepository, RepositoryError},
 };
 use super::{
-    models::{RecurrenceModel, RecurrenceExceptionModel},
     mappers::RecurrenceMapper,
+    models::{RecurrenceModel, RecurrenceExceptionModel},
 };
 
 pub struct SqliteRecurringEventRepository {
@@ -18,17 +18,19 @@ impl SqliteRecurringEventRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
-}
 
-#[async_trait]
-impl RecurringEventRepository for SqliteRecurringEventRepository {
-    async fn save(&self, event: &RecurringEvent) -> Result<(), RepositoryError> {
-        let mut tx = self.pool.begin()
+    async fn begin_tx(
+        &self
+    ) -> Result<Transaction<'_, Sqlite>, RepositoryError> {
+        self.pool.begin()
             .await
-            .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
-        
-        let model = RecurrenceMapper::to_model(event);
+            .map_err(|e| RepositoryError::DatabaseError(e.to_string()))
+    }
 
+    async fn save_recurrence(
+        tx: &mut Transaction<'_, Sqlite>,
+        model: &super::models::RecurrenceModel,
+    ) -> Result<(), RepositoryError> {
         sqlx::query!(
             r#"
                 INSERT INTO recurrences (
@@ -36,10 +38,7 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
                     frequency, interval, until, color, is_all_day, is_cancelled,
                     created_at, updated_at
                 )
-                VALUES (
-                    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
-                    ?9, ?10, ?11, ?12, ?13, ?14
-                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                 ON CONFLICT(id) DO UPDATE SET
                     title = excluded.title,
                     description = excluded.description,
@@ -68,19 +67,25 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
             model.created_at,
             model.updated_at,
         )
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await
         .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
 
+        Ok(())
+    }
+
+    async fn save_exceptions(
+        tx: &mut Transaction<'_, Sqlite>,
+        event: &RecurringEvent,
+    ) -> Result<(), RepositoryError> {
+        let event_id = event.event_id().to_string();
         sqlx::query!(
-            r#"
-                DELETE FROM recurrence_exceptions WHERE recurrence_id = ?1
-            "#,
-            model.id,
+            "DELETE FROM recurrence_exceptions WHERE recurrence_id = ?",
+            event_id,
         )
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+            .execute(&mut **tx)
+            .await
+            .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
 
         for exception in event.exceptions().values() {
             let ex_model = RecurrenceMapper::exception_to_model(
@@ -94,7 +99,7 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
                         recurrence_id, original_starts_at, new_starts_at,
                         new_ends_at, is_cancelled
                     )
-                    VALUES (?1, ?2, ?3, ?4, ?5)
+                    VALUES ($1, $2, $3, $4, $5)
                 "#,
                 ex_model.recurrence_id,
                 ex_model.original_starts_at,
@@ -102,10 +107,49 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
                 ex_model.new_ends_at,
                 ex_model.is_cancelled,
             )
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await
             .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
         }
+
+        Ok(())
+    }
+
+    async fn load_exceptions(
+        &self,
+        recurrence_id: &str,
+    ) -> Result<Vec<RecurrenceExceptionModel>, RepositoryError> {
+        sqlx::query_as::<_, RecurrenceExceptionModel>(
+            "SELECT id, recurrence_id, original_starts_at, new_starts_at,
+                    new_ends_at, is_cancelled
+             FROM recurrence_exceptions WHERE recurrence_id = ?"
+        )
+        .bind(recurrence_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))
+    }
+
+    fn to_domain(
+        model: RecurrenceModel,
+        exceptions: Vec<RecurrenceExceptionModel>,
+    ) -> Result<RecurringEvent, RepositoryError> {
+        RecurrenceMapper::to_domain(model, exceptions)
+            .map_err(|e| RepositoryError::MappingError(e.to_string()))
+    }
+}
+
+#[async_trait]
+impl RecurringEventRepository for SqliteRecurringEventRepository {
+    async fn save(
+        &self,
+        event: &RecurringEvent
+    ) -> Result<(), RepositoryError> {
+        let mut tx = self.begin_tx().await?;
+        let model = RecurrenceMapper::to_model(event);
+
+        Self::save_recurrence(&mut tx, &model).await?;
+        Self::save_exceptions(&mut tx, event).await?;
 
         tx.commit()
             .await
@@ -114,101 +158,55 @@ impl RecurringEventRepository for SqliteRecurringEventRepository {
         Ok(())
     }
 
+    async fn find_by_id(
+        &self,
+        id: &EventId
+    ) -> Result<RecurringEvent, RepositoryError> {
+        let model = sqlx::query_as::<_, RecurrenceModel>("
+            SELECT id, calendar_id, title, description, starts_at, ends_at,
+                    frequency, interval, until, color, is_all_day, is_cancelled,
+                    created_at, updated_at
+             FROM recurrences WHERE id = ?
+        ")
+        .bind(id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?
+        .ok_or(RepositoryError::NotFound)?;
+
+        let exceptions = self.load_exceptions(&model.id).await?;
+        Self::to_domain(model, exceptions)
+    }
+
     async fn find_by_calendar(
         &self,
-        id: &CalendarId
+        calendar_id: &CalendarId
     ) -> Result<Vec<RecurringEvent>, RepositoryError> {
-        let models = sqlx::query_as::<_, RecurrenceModel>(
-            r#"
-                SELECT id, calendar_id, title, description, starts_at, ends_at,
-                       frequency, interval, until, color, is_all_day,
-                       is_cancelled, created_at, updated_at
-                FROM recurrences
-                WHERE calendar_id = ?1
-                ORDER BY starts_at
-            "#
-        )
-        .bind(&id.to_string())
+        let models = sqlx::query_as::<_, RecurrenceModel>("
+            SELECT id, calendar_id, title, description, starts_at, ends_at,
+                    frequency, interval, until, color, is_all_day, is_cancelled,
+                    created_at, updated_at
+             FROM recurrences WHERE calendar_id = ? ORDER BY starts_at
+        ")
+        .bind(calendar_id.to_string())
         .fetch_all(&self.pool)
         .await
         .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
 
         let mut result = Vec::new();
-
         for model in models {
-            let exceptions = sqlx::query_as::<_, RecurrenceExceptionModel>(
-                r#"
-                    SELECT id, recurrence_id, original_starts_at, new_starts_at,
-                           new_ends_at, is_cancelled
-                    FROM recurrence_exceptions
-                    WHERE recurrence_id = ?1
-                "#
-            )
-            .bind(&model.id)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
-
-            let event = RecurrenceMapper::to_domain(model, exceptions)
-                .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
-
-            result.push(event);
+            let exceptions = self.load_exceptions(&model.id).await?;
+            result.push(Self::to_domain(model, exceptions)?);
         }
 
         Ok(result)
     }
 
-    async fn find_by_id(
-        &self,
-        id: &EventId
-    ) -> Result<RecurringEvent, RepositoryError> {
-        let model = sqlx::query_as::<_, RecurrenceModel>(
-            r#"
-                SELECT id, calendar_id, title, description, starts_at, ends_at,
-                       frequency, interval, until, color, is_all_day,
-                       is_cancelled,
-                       created_at, updated_at
-                FROM recurrences
-                WHERE id = ?1
-            "#
-        )
-            .bind(id.to_string())
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
-
-        let model = match model {
-            Some(m) => m,
-            None => return Err(RepositoryError::NotFound),
-        };
-
-        let exceptions = sqlx::query_as::<_, RecurrenceExceptionModel>(
-            r#"
-                SELECT recurrence_id, original_starts_at, new_starts_at,
-                       new_ends_at, is_cancelled
-                FROM recurrence_exceptions
-                WHERE recurrence_id = ?1
-            "#
-        )
-            .bind(&model.id)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
-
-        let event = RecurrenceMapper::to_domain(model, exceptions)
-            .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
-
-        Ok(event)
-    }
-
     async fn delete(&self, id: &EventId) -> Result<(), RepositoryError> {
-        let id_str = id.to_string();
-
+        let event_id = id.to_string();
         let result = sqlx::query!(
-            r#"
-                DELETE FROM recurrences WHERE id = ?1
-            "#,
-            id_str,
+            "DELETE FROM recurrences WHERE id = ?",
+            event_id,
         )
             .execute(&self.pool)
             .await

@@ -15,6 +15,21 @@ impl SqliteEventRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
+
+    fn model_to_domain(model: EventModel) -> Result<Event, RepositoryError> {
+        EventMapper::to_domain(model)
+            .map_err(|e| RepositoryError::MappingError(e.to_string()))
+    }
+
+    fn models_to_domain(
+        models: Vec<EventModel>
+    ) -> Result<Vec<Event>, RepositoryError> {
+        models.into_iter().map(Self::model_to_domain).collect()
+    }
+
+    fn db_error(e: sqlx::Error) -> RepositoryError {
+        RepositoryError::DatabaseError(e.to_string())
+    }
 }
 
 #[async_trait]
@@ -28,7 +43,7 @@ impl EventRepository for SqliteEventRepository {
                     id, calendar_id, title, description, starts_at, ends_at,
                     color, is_all_day, is_cancelled, created_at, updated_at
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                 ON CONFLICT(id) DO UPDATE SET
                     title = excluded.title,
                     description = excluded.description,
@@ -53,65 +68,42 @@ impl EventRepository for SqliteEventRepository {
         )
         .execute(&self.pool)
         .await
-        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+        .map_err(Self::db_error)?;
 
         Ok(())
     }
 
     async fn find_by_id(
-        &self,
-        id: &EventId
+        &self, id: &EventId
     ) -> Result<Option<Event>, RepositoryError> {
-        let id_str = id.to_string();
-
-        let model = sqlx::query_as::<_, EventModel>(
-            r#"
+        sqlx::query_as::<_, EventModel>("
             SELECT id, calendar_id, title, description, starts_at, ends_at,
                    color, is_all_day, is_cancelled, created_at, updated_at
-            FROM events
-            WHERE id = ?1
-            "#
-        )
-        .bind(&id_str)
+             FROM events WHERE id = ?
+        ")
+        .bind(id.to_string())
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
-
-        match model {
-            Some(m) => {
-                let event = EventMapper::to_domain(m)
-                    .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
-                Ok(Some(event))
-            }
-            None => Ok(None),
-        }
+        .map_err(Self::db_error)?
+        .map(Self::model_to_domain)
+        .transpose()
     }
 
     async fn find_by_calendar(
         &self,
         calendar_id: &CalendarId
     ) -> Result<Vec<Event>, RepositoryError> {
-        let calendar_id_str = calendar_id.to_string();
-
-        let models = sqlx::query_as::<_, EventModel>(
-            r#"
+        let models = sqlx::query_as::<_, EventModel>("
             SELECT id, calendar_id, title, description, starts_at, ends_at,
                    color, is_all_day, is_cancelled, created_at, updated_at
-            FROM events
-            WHERE calendar_id = ?1
-            ORDER BY starts_at
-            "#
-        )
-        .bind(&calendar_id_str)
+            FROM events WHERE calendar_id = ? ORDER BY starts_at
+        ")
+        .bind(calendar_id.to_string())
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+        .map_err(Self::db_error)?;
 
-        models
-            .into_iter()
-            .map(|m| EventMapper::to_domain(m)
-                .map_err(|e| RepositoryError::DatabaseError(e.to_string())))
-            .collect()
+        Self::models_to_domain(models)
     }
 
     async fn find_in_range(
@@ -119,48 +111,32 @@ impl EventRepository for SqliteEventRepository {
         calendar_id: &CalendarId,
         range: &TimeRange,
     ) -> Result<Vec<Event>, RepositoryError> {
-        let calendar_id_str = calendar_id.to_string();
-        let range_start = range.starts_at().to_rfc3339();
-        let range_end = range.ends_at().to_rfc3339();
-
-        let models = sqlx::query_as::<_, EventModel>(
-            r#"
+        let models = sqlx::query_as::<_, EventModel>("
             SELECT id, calendar_id, title, description, starts_at, ends_at,
-                   color, is_all_day, is_cancelled, created_at, updated_at
+                color, is_all_day, is_cancelled, created_at, updated_at
             FROM events
-            WHERE calendar_id = ?1
-              AND is_cancelled = 0
-              AND starts_at < ?3
-              AND ends_at > ?2
+            WHERE calendar_id = ?
+                AND is_cancelled = 0
+                AND starts_at < ?
+                AND ends_at > ?
             ORDER BY starts_at
-            "#
-        )
-        .bind(&calendar_id_str)
-        .bind(&range_start)
-        .bind(&range_end)
+        ")
+        .bind(calendar_id.to_string())
+        .bind(range.ends_at().to_rfc3339())
+        .bind(range.starts_at().to_rfc3339())
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+        .map_err(Self::db_error)?;
 
-        models
-            .into_iter()
-            .map(|m| EventMapper::to_domain(m)
-                .map_err(|e| RepositoryError::DatabaseError(e.to_string())))
-            .collect()
+        Self::models_to_domain(models)
     }
 
     async fn delete(&self, id: &EventId) -> Result<(), RepositoryError> {
-        let id_str = id.to_string();
-        
-        let result = sqlx::query!(
-            r#"
-                DELETE FROM events WHERE id = ?1
-            "#,
-            id_str,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| RepositoryError::DatabaseError(e.to_string()))?;
+        let event_id = id.to_string();
+        let result = sqlx::query!("DELETE FROM events WHERE id = ?", event_id)
+            .execute(&self.pool)
+            .await
+            .map_err(Self::db_error)?;
 
         if result.rows_affected() == 0 {
             return Err(RepositoryError::NotFound);

@@ -41,7 +41,7 @@ impl Event {
     ) -> Result<Self, DomainError> {
         let now = Utc::now();
         if title.is_empty() {
-            Err(DomainError::EmptyTitle)
+            Err(DomainError::EmptyEventTitle)
         } else {
             Ok(Self {
                 event_id: EventId::new(),
@@ -71,7 +71,7 @@ impl Event {
         updated_at: DateTime<Utc>,
     ) -> Result<Self, DomainError> {
         if title.is_empty() {
-            Err(DomainError::EmptyTitle)
+            Err(DomainError::EmptyEventTitle)
         } else {
             Ok(Self {
                 event_id,

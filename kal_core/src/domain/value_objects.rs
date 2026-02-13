@@ -3,8 +3,8 @@ use core::fmt;
 use chrono::{DateTime, Utc};
 use getset::{Getters};
 use uuid::Uuid;
-
-use crate::domain::error::DomainError;
+use thiserror::Error;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EventColor(u8);
@@ -33,9 +33,9 @@ impl TimeRange {
     pub fn new(
         starts_at: DateTime<Utc>,
         ends_at: DateTime<Utc>,
-    ) -> Result<Self, DomainError> {
+    ) -> Result<Self, TimeRangeError> {
         if starts_at >= ends_at {
-            Err(DomainError::InvalidTimeRange)
+            Err(TimeRangeError::EndBeforeStart)
         } else {
             Ok(Self { starts_at, ends_at })
         }
@@ -66,20 +66,6 @@ impl fmt::Display for Frequency {
             Frequency::Weekly => write!(f, "WEEKLY"),
             Frequency::Monthly => write!(f, "MONTHLY"),
             Frequency::Yearly => write!(f, "YEARLY"),
-        }
-    }
-}
-
-impl std::str::FromStr for Frequency {
-    type Err = DomainError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_uppercase().as_str() {
-            "DAILY" => Ok(Frequency::Daily),
-            "WEEKLY" => Ok(Frequency::Weekly),
-            "MONTHLY" => Ok(Frequency::Monthly),
-            "YEARLY" => Ok(Frequency::Yearly),
-            _ => Err(DomainError::InvalidFrequency),
         }
     }
 }
@@ -143,5 +129,56 @@ impl std::str::FromStr for EventId {
     
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(Uuid::parse_str(s)?))
+    }
+}
+
+// Calendar ID Error
+#[derive(Debug, Error)]
+pub enum CalendarIdError {
+    #[error("Calendar ID cannot be empty")]
+    Empty,
+
+    #[error("Invalid calendar ID format: {0}")]
+    InvalidFormat(String),
+
+    #[error("Calendar ID must be a valid UUID")]
+    InvalidUuid(#[from] uuid::Error),
+}
+
+#[derive(Debug, Error)]
+pub enum EventIdError {
+    #[error("Event ID cannot be empty")]
+    Empty,
+
+    #[error("Invalid event ID format: {0}")]
+    InvalidFormat(String),
+
+    #[error("Event ID must be a valid UUID")]
+    InvalidUuid(#[from] uuid::Error),
+}
+
+#[derive(Debug, Error)]
+pub enum TimeRangeError {
+    #[error("End time must be after start time")]
+    EndBeforeStart,
+}
+
+#[derive(Debug, Error)]
+pub enum FrequencyError {
+    #[error("Unknown frequency: {0}")]
+    Unknown(String),
+}
+
+impl FromStr for Frequency {
+    type Err = FrequencyError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "daily" => Ok(Frequency::Daily),
+            "weekly" => Ok(Frequency::Weekly),
+            "monthly" => Ok(Frequency::Monthly),
+            "yearly" => Ok(Frequency::Yearly),
+            _ => Err(FrequencyError::Unknown(s.to_string())),
+        }
     }
 }

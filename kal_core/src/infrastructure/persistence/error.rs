@@ -1,18 +1,22 @@
 use thiserror::Error;
 
-use crate::domain::error::DomainError;
-
 #[derive(Debug, Error)]
 pub enum MapperError {
     #[error("Invalid ID: {0}")]
     InvalidId(String),
 
-    #[error("Invalid datetime: {0}")]
+    #[error("Invalid date format: {0}")]
     InvalidDate(String),
 
     #[error("Invalid data: {0}")]
     InvalidData(String),
 
-    #[error(transparent)]
-    Domain(#[from] DomainError),
+    #[error("Missing required field: {0}")]
+    MissingField(String),
+
+    #[error("Invalid enum value: {0}")]
+    InvalidEnum(String),
+
+    #[error("Conversion error: {0}")]
+    ConversionError(String),
 }

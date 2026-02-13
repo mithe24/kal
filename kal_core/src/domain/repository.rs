@@ -1,4 +1,6 @@
 use async_trait::async_trait;
+use thiserror::Error;
+
 use super::{
     calendar::Calendar,
     event::Event,
@@ -6,22 +8,10 @@ use super::{
     value_objects::{CalendarId, EventId, TimeRange},
 };
 
-#[derive(Debug, thiserror::Error)]
-pub enum RepositoryError {
-    #[error("Entity not found")]
-    NotFound,
-    
-    #[error("Database error: {0}")]
-    DatabaseError(String),
-    
-    #[error("Constraint violation: {0}")]
-    ConstraintViolation(String),
-}
-
 #[async_trait]
 pub trait CalendarRepository: Send + Sync {
     async fn save(&self, calendar: &Calendar) -> Result<(), RepositoryError>;
-    async fn find_by_id(&self, id: &CalendarId) -> Result<Option<Calendar>, RepositoryError>;
+    async fn find_by_id(&self, id: &CalendarId) ->  Result<Option<Calendar>, RepositoryError>;
     async fn find_all_active(&self) -> Result<Vec<Calendar>, RepositoryError>;
     async fn delete(&self, id: &CalendarId) -> Result<(), RepositoryError>;
 }
@@ -41,4 +31,25 @@ pub trait RecurringEventRepository: Send + Sync {
     async fn find_by_calendar(&self, calendar_id: &CalendarId) -> Result<Vec<RecurringEvent>, RepositoryError>;
     async fn find_by_id(&self, event_id: &EventId) -> Result<RecurringEvent, RepositoryError>;
     async fn delete(&self, id: &EventId) -> Result<(), RepositoryError>;
+}
+
+#[derive(Debug, Error)]
+pub enum RepositoryError {
+    #[error("Database error: {0}")]
+    DatabaseError(String),
+    
+    #[error("Entity not found")]
+    NotFound,
+    
+    #[error("Mapping error: {0}")]
+    MappingError(String),
+    
+    #[error("Transaction error: {0}")]
+    TransactionError(String),
+
+    #[error("Constraint violation: {0}")]
+    ConstraintViolation(String),
+
+    #[error("Connection error: {0}")]
+    ConnectionError(String),
 }

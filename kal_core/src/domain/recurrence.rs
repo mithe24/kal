@@ -25,7 +25,7 @@ impl RecurrenceRule {
         until: Option<DateTime<Utc>>,
     ) -> Result<Self, DomainError> {
         if interval == 0 {
-            return Err(DomainError::InvalidInterval);
+            return Err(DomainError::InvalidRecurrenceInterval);
         }
         Ok(Self {
             frequency,
@@ -75,7 +75,7 @@ impl RecurringEvent {
     ) -> Result<Self, DomainError> {
         let now = Utc::now();
         if title.is_empty() {
-            Err(DomainError::EmptyTitle)
+            Err(DomainError::EmptyEventTitle)
         } else {
             Ok(Self {
                 event_id: EventId::new(),
@@ -109,7 +109,7 @@ impl RecurringEvent {
         updated_at: DateTime<Utc>,
     ) -> Result<Self, DomainError> {
         if title.is_empty() {
-            Err(DomainError::EmptyTitle)
+            Err(DomainError::EmptyEventTitle)
         } else {
             Ok(Self {
                 event_id,

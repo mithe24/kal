@@ -12,7 +12,6 @@ pub struct CreateCalendarCommand {
     description: Option<String>,
 }
 
-
 pub struct CreateCalendarHandler<R: CalendarRepository> {
     repository: R,
 }
