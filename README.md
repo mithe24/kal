@@ -1,3 +1,6 @@
+> [!CAUTION]
+> Project has migrated from Github to [Codeberg](https://codeberg.org/mithe/kal)
+
 # CLI Calendar Application
 A powerful, flexible command-line calendar application written in Rust
 that supports multiple calendars, event management,
